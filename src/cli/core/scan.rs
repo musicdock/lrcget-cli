@@ -23,10 +23,8 @@ pub async fn execute(args: ScanArgs, services: &SimpleServices) -> Result<()> {
     let directories = if let Some(dir) = args.directory {
         vec![dir]
     } else {
-        // TODO: Implement get_directories in DatabaseService
-        return Err(crate::error::LrcGetError::Validation(
-            "Directory retrieval not yet implemented in new architecture".to_string()
-        ));
+        // Retrieve directories from the database using SimpleServices
+        services.get_directories().await?
     };
 
     if directories.is_empty() {
@@ -93,4 +91,13 @@ pub async fn execute(args: ScanArgs, services: &SimpleServices) -> Result<()> {
     }
 
     Ok(())
+}
+
+impl SimpleServices {
+    /*...*/
+    pub async fn get_directories(&self) -> Result<Vec<String>> {
+        let db = self.create_database().await?;
+        db.get_directories().await.map_err(crate::error::LrcGetError::Internal)
+    }
+    /*...*/
 }
