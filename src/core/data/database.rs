@@ -1,10 +1,15 @@
+//! SQLite database operations for local music library
+//!
+//! This module handles all database operations for storing and retrieving
+//! music track information, including metadata and lyrics storage paths.
+
 use anyhow::Result;
 use rusqlite::{Connection, params, named_params};
 use serde::Serialize;
 use std::path::Path;
 use tracing::{debug, info};
 
-use crate::core::scanner::Track;
+use crate::core::files::scanner::Track;
 
 const CURRENT_DB_VERSION: u32 = 1;
 

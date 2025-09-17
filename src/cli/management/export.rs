@@ -6,7 +6,7 @@ use std::io::Write;
 use tracing::info;
 
 use crate::config::Config;
-use crate::core::database::{Database, DatabaseTrack};
+use crate::core::data::database::{Database, DatabaseTrack};
 
 #[derive(Args)]
 pub struct ExportArgs {

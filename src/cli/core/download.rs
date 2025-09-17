@@ -1,12 +1,11 @@
 use clap::Args;
-use anyhow::Result;
 use tracing::{info, warn};
 
-use crate::config::Config;
-use crate::core::database::Database;
-use crate::core::lrclib::LyricsDownloader;
-use crate::core::cache::{LyricsCache, LyricsCacheInterface};
-use crate::core::hooks::{HookManager, HookEvent, HookContext};
+use crate::error::Result;
+use crate::services::ServiceFactory;
+use crate::core::services::lrclib::LyricsDownloader;
+use crate::core::infrastructure::cache::{LyricsCache, LyricsCacheInterface};
+use crate::core::infrastructure::hooks::{HookManager, HookEvent, HookContext};
 use crate::ui::create_progress_interface;
 use crate::ui::progress_state::{ProgressState, TrackResult, FinalStats};
 use crate::signal_handler::{SignalHandler, AppState};
@@ -41,8 +40,9 @@ pub struct DownloadArgs {
     dry_run: bool,
 }
 
-pub async fn execute(args: DownloadArgs, config: &Config) -> Result<()> {
-    let db = Database::new(&config.database_path).await?;
+pub async fn execute(args: DownloadArgs, config: &crate::config::Config) -> crate::error::Result<()> {
+    let factory = ServiceFactory::new(std::sync::Arc::new(config.clone()));
+    let bundle = factory.create_full_bundle().await?;
 
     // Initialize hybrid cache (Redis + File)
     let cache_dir = config.database_path.parent()
@@ -51,7 +51,7 @@ pub async fn execute(args: DownloadArgs, config: &Config) -> Result<()> {
     let cache = Arc::new(RwLock::new(
         LyricsCache::new(cache_dir, config.redis_url.as_deref())?
     ));
-    let client = config.create_lrclib_client();
+    let client = factory.create_lrclib_client();
     let _downloader = LyricsDownloader::from_client_with_cache(client, cache.clone());
 
     // Initialize hooks
@@ -63,11 +63,11 @@ pub async fn execute(args: DownloadArgs, config: &Config) -> Result<()> {
         warn!("Failed to load hooks configuration: {}", e);
     }
 
-    // Get tracks to process
+    // Get tracks to process using bundle
     let tracks = if let Some(track_id) = args.track_id {
-        vec![db.get_track(track_id).await?]
+        vec![bundle.database.get_track(track_id).await.map_err(crate::error::LrcGetError::Internal)?]
     } else {
-        let mut query_tracks = db.get_all_tracks().await?;
+        let mut query_tracks = bundle.database.get_all_tracks().await.map_err(crate::error::LrcGetError::Internal)?;
 
         // Apply filters
         if args.missing_lyrics {

@@ -3,7 +3,7 @@ use anyhow::Result;
 use tracing::info;
 
 use crate::config::Config;
-use crate::core::cache::{LyricsCache, LyricsCacheInterface};
+use crate::core::infrastructure::cache::{LyricsCache, LyricsCacheInterface};
 
 #[derive(Args)]
 pub struct CacheArgs {

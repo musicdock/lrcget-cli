@@ -1,14 +1,13 @@
 use clap::Args;
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tracing::{info, warn};
 use tokio::time::{sleep, Duration};
 
-use crate::config::Config;
-use crate::core::database::Database;
-use crate::core::lrclib::LyricsDownloader;
+use crate::error::Result;
+use crate::services::ServiceFactory;
+use crate::core::services::lrclib::LyricsDownloader;
 
 #[derive(Args)]
 pub struct BatchArgs {
@@ -72,12 +71,16 @@ struct BatchReport {
     results: Vec<BatchResult>,
 }
 
-pub async fn execute(args: BatchArgs, config: &Config) -> Result<()> {
+pub async fn execute(args: BatchArgs, config: &crate::config::Config) -> crate::error::Result<()> {
     info!("📋 Processing batch file: {}", args.file.display());
 
     if !args.file.exists() {
-        anyhow::bail!("Batch file does not exist: {}", args.file.display());
+        return Err(crate::error::LrcGetError::Validation(
+            format!("Batch file does not exist: {}", args.file.display())
+        ));
     }
+
+    let factory = ServiceFactory::new(std::sync::Arc::new(config.clone()));
 
     let items = load_batch_file(&args.file).await?;
     info!("📥 Loaded {} items from batch file", items.len());
@@ -96,10 +99,12 @@ pub async fn execute(args: BatchArgs, config: &Config) -> Result<()> {
     }
 
     match args.operation.as_str() {
-        "download" => execute_batch_download(args, config, items).await,
-        "search" => execute_batch_search(args, config, items).await,
-        "validate" => execute_batch_validate(args, config, items).await,
-        _ => anyhow::bail!("Unknown operation: {}. Available: download, search, validate", args.operation),
+        "download" => execute_batch_download(args, &factory, items).await,
+        "search" => execute_batch_search(args, &factory, items).await,
+        "validate" => execute_batch_validate(args, &factory, items).await,
+        _ => Err(crate::error::LrcGetError::Validation(
+            format!("Unknown operation: {}. Available: download, search, validate", args.operation)
+        )),
     }
 }
 
@@ -122,7 +127,9 @@ async fn load_batch_file(file_path: &PathBuf) -> Result<Vec<BatchItem>> {
         "csv" => {
             parse_csv(&content)
         },
-        _ => anyhow::bail!("Unsupported batch file format. Use .json, .toml, or .csv"),
+        _ => Err(crate::error::LrcGetError::Validation(
+            "Unsupported batch file format. Use .json, .toml, or .csv".to_string()
+        )),
     }
 }
 
@@ -172,12 +179,12 @@ fn parse_csv_line(line: &str) -> Result<Option<BatchItem>> {
     }))
 }
 
-async fn execute_batch_download(args: BatchArgs, config: &Config, items: Vec<BatchItem>) -> Result<()> {
+async fn execute_batch_download(args: BatchArgs, factory: &ServiceFactory, items: Vec<BatchItem>) -> Result<()> {
     info!("⬇️ Starting batch download for {} items", items.len());
-    
-    let client = config.create_lrclib_client();
-    let downloader = LyricsDownloader::from_client(client);
-    let db = Database::new(&config.database_path).await?;
+
+    // Use ServiceFactory to eliminate duplication
+    let bundle = factory.create_full_bundle().await?;
+    let downloader = factory.create_lyrics_downloader();
     let start_time = std::time::Instant::now();
     
     let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(args.parallel));
@@ -275,7 +282,7 @@ async fn execute_batch_download(args: BatchArgs, config: &Config, items: Vec<Bat
     Ok(())
 }
 
-async fn process_download_item(downloader: &LyricsDownloader, item: &BatchItem) -> Result<String> {
+async fn process_download_item(_downloader: &LyricsDownloader, item: &BatchItem) -> Result<String> {
     // This is a simplified version - in reality we'd need to create a DatabaseTrack
     // from the BatchItem or integrate more deeply with the database
     info!("Processing: {} - {}", item.artist, item.title);
@@ -289,12 +296,11 @@ async fn process_download_item(downloader: &LyricsDownloader, item: &BatchItem) 
     Ok(format!("Downloaded lyrics for {} - {}", item.artist, item.title))
 }
 
-async fn execute_batch_search(args: BatchArgs, config: &Config, items: Vec<BatchItem>) -> Result<()> {
+async fn execute_batch_search(args: BatchArgs, factory: &ServiceFactory, items: Vec<BatchItem>) -> Result<()> {
     info!("🔍 Starting batch search for {} items", items.len());
     
-    use crate::core::lrclib::LrclibClient;
-    let client = LrclibClient::new(&config.lrclib_instance);
-    let mut results: Vec<crate::core::lrclib::SearchResult> = Vec::new();
+    let client = factory.create_lrclib_client();
+    let mut results: Vec<crate::core::services::lrclib::SearchResult> = Vec::new();
     
     for (i, item) in items.iter().enumerate() {
         info!("Searching {}/{}: {} - {}", i + 1, items.len(), item.artist, item.title);
@@ -316,7 +322,7 @@ async fn execute_batch_search(args: BatchArgs, config: &Config, items: Vec<Batch
     Ok(())
 }
 
-async fn execute_batch_validate(args: BatchArgs, config: &Config, items: Vec<BatchItem>) -> Result<()> {
+async fn execute_batch_validate(args: BatchArgs, factory: &ServiceFactory, items: Vec<BatchItem>) -> Result<()> {
     info!("✅ Starting batch validation for {} items", items.len());
     
     let mut valid_count = 0;

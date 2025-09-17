@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 use async_trait::async_trait;
 use redis::{AsyncCommands, Client as RedisClient};
 
-use crate::core::lrclib::LyricsResponse;
+use crate::core::services::lrclib::LyricsResponse;
 
 // Generic trait for cache implementations
 #[async_trait]
@@ -21,6 +21,9 @@ pub trait LyricsCacheInterface: Send + Sync {
     async fn cleanup_old_entries(&mut self) -> Result<()>;
     async fn save_index(&self) -> Result<()>;
 }
+
+// Re-export the trait with a cleaner name
+pub use LyricsCacheInterface as CacheService;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct CacheEntry {

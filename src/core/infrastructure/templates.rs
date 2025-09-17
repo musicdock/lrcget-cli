@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::{debug, warn, info};
 
-use crate::core::database::DatabaseTrack;
+use crate::core::data::database::DatabaseTrack;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {
