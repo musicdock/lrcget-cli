@@ -1,6 +1,10 @@
 pub mod docker_ui;
 pub mod terminal_ui;
+pub mod enhanced_terminal_ui;
 pub mod progress_state;
+
+// Declare the terminal module but don't re-export to avoid circular imports
+pub mod terminal;
 
 use async_trait::async_trait;
 use std::time::Instant;
@@ -9,18 +13,19 @@ use crate::ui::progress_state::{ProgressState, TrackResult, FinalStats};
 /// Detect the UI mode based on environment
 #[derive(Debug, Clone, PartialEq)]
 pub enum UiMode {
-    Docker,    // Structured logging for containers/CI
-    Terminal,  // Interactive TUI for normal terminals
+    Docker,           // Structured logging for containers/CI
+    Terminal,         // Simple progress bar for terminals
+    EnhancedTerminal, // Full TUI with interactive features
 }
 
 impl UiMode {
     pub fn detect() -> Self {
         use tracing::debug;
 
-        // Allow forcing Terminal UI for testing
+        // Allow forcing Enhanced Terminal UI for testing
         if std::env::var("LRCGET_FORCE_TERMINAL_UI").is_ok() {
-            debug!("UI Mode: Terminal (forced by LRCGET_FORCE_TERMINAL_UI)");
-            return UiMode::Terminal;
+            debug!("UI Mode: EnhancedTerminal (forced by LRCGET_FORCE_TERMINAL_UI)");
+            return UiMode::EnhancedTerminal;
         }
 
         let has_docker = std::env::var("DOCKER").is_ok();
@@ -36,8 +41,14 @@ impl UiMode {
             debug!("UI Mode: Docker (non-interactive environment detected)");
             UiMode::Docker
         } else {
-            debug!("UI Mode: Terminal (interactive TTY detected)");
-            UiMode::Terminal
+            // Check if enhanced terminal UI is supported
+            if terminal::should_enable_terminal_ui() {
+                debug!("UI Mode: EnhancedTerminal (full TUI support detected)");
+                UiMode::EnhancedTerminal
+            } else {
+                debug!("UI Mode: Terminal (basic terminal support)");
+                UiMode::Terminal
+            }
         }
     }
 }
@@ -78,6 +89,9 @@ pub fn create_progress_interface() -> Box<dyn ProgressInterface> {
         }
         UiMode::Terminal => {
             Box::new(terminal_ui::TerminalUi::new())
+        }
+        UiMode::EnhancedTerminal => {
+            Box::new(enhanced_terminal_ui::EnhancedTerminalUi::new())
         }
     }
 }

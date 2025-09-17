@@ -16,9 +16,10 @@ path = "src/main.rs"
 clap = { version = "4.4", features = ["derive", "color"] }
 
 # UI and terminal
-crossterm = "0.27"
+crossterm = { version = "0.27", features = ["event-stream"] }
 ratatui = "0.25"
 atty = "0.2"
+sysinfo = "0.30"
 
 # Async runtime
 tokio = { version = "1.40", features = ["full", "sync", "signal"] }

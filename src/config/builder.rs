@@ -7,6 +7,7 @@ use crate::config::env::{EnvVars, EnvParser};
 use crate::config::Config;
 
 /// Configuration builder with validation and type safety
+#[derive(Debug)]
 pub struct ConfigBuilder {
     database_path: Option<PathBuf>,
     lrclib_instance: Option<String>,
