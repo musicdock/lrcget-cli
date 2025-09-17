@@ -8,9 +8,9 @@ use tracing::{debug, info, warn};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
-use crate::core::database::DatabaseTrack;
-use crate::core::cache::{LyricsCache, LyricsCacheInterface};
-use crate::core::lrclib_db::LrclibDatabase;
+use crate::core::data::database::DatabaseTrack;
+use crate::core::infrastructure::cache::{LyricsCache, LyricsCacheInterface};
+use crate::core::data::lrclib_db::LrclibDatabase;
 
 #[derive(Debug, Clone)]
 pub struct LyricsDownloadResult {
@@ -307,7 +307,7 @@ impl LrclibClient {
         album: &str,
         duration: f64,
     ) -> Result<Option<SearchResult>> {
-        use crate::core::lrclib_db::LrclibDatabase;
+        use crate::core::data::lrclib_db::LrclibDatabase;
 
         let db_path = self.local_db_path.as_ref().expect("local_db_path must be set when searching local DB");
 
@@ -342,7 +342,7 @@ impl LrclibClient {
         album: &str,
         duration: f64,
     ) -> Result<()> {
-        use crate::core::lrclib_db::{LrclibDatabase, LrclibTrack};
+        use crate::core::data::lrclib_db::{LrclibDatabase, LrclibTrack};
         
         let db_path = self.local_db_path.as_ref().expect("local_db_path must be set when updating local DB");
         let lrclib_db = LrclibDatabase::new(db_path).await?;
@@ -367,7 +367,7 @@ impl LrclibClient {
     }
 
     async fn update_local_db_with_search_results(&self, results: &Vec<SearchResult>) -> Result<()> {
-        use crate::core::lrclib_db::{LrclibDatabase, LrclibTrack};
+        use crate::core::data::lrclib_db::{LrclibDatabase, LrclibTrack};
         let db_path = self.local_db_path.as_ref().expect("local_db_path must be set when updating local DB");
         let lrclib_db = LrclibDatabase::new(db_path).await?;
 
@@ -658,7 +658,7 @@ impl LyricsDownloader {
             }
 
             // Save lyrics to files
-            use crate::core::lyrics::LyricsManager;
+            use crate::core::files::lyrics::LyricsManager;
             let lyrics_manager = LyricsManager::new();
 
             lyrics_manager.save_lyrics_for_track(

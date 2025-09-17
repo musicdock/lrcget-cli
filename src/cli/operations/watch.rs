@@ -11,9 +11,9 @@ use std::io::Write;
 use chrono::Utc;
 
 use crate::config::Config;
-use crate::core::database::Database;
-use crate::core::scanner::Scanner;
-use crate::core::lrclib::LyricsDownloader;
+use crate::core::data::database::Database;
+use crate::core::files::scanner::Scanner;
+use crate::core::services::lrclib::LyricsDownloader;
 
 #[derive(Debug, Clone)]
 pub enum WatchAction {

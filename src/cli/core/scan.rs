@@ -1,11 +1,9 @@
 use clap::Args;
-use anyhow::Result;
-use indicatif::{ProgressBar, ProgressStyle};
 use tracing::info;
 
-use crate::config::Config;
-use crate::core::database::Database;
-use crate::core::scanner::{Scanner, Track};
+use crate::error::Result;
+use crate::services::SimpleServices;
+use crate::utils::progress::{ProgressUtils, ProgressMessages};
 
 #[derive(Args)]
 pub struct ScanArgs {
@@ -18,41 +16,41 @@ pub struct ScanArgs {
     force: bool,
 }
 
-pub async fn execute(args: ScanArgs, config: &Config) -> Result<()> {
-    let mut db = Database::new(&config.database_path).await?;
-    let scanner = Scanner::new();
+pub async fn execute(args: ScanArgs, services: &SimpleServices) -> Result<()> {
+    let mut database = services.create_database().await?;
+    let scanner = services.create_scanner().await?;
 
     let directories = if let Some(dir) = args.directory {
         vec![dir]
     } else {
-        db.get_directories().await?
+        // TODO: Implement get_directories in DatabaseService
+        return Err(crate::error::LrcGetError::Validation(
+            "Directory retrieval not yet implemented in new architecture".to_string()
+        ));
     };
 
     if directories.is_empty() {
-        anyhow::bail!("No directories configured. Run 'lrcget init <directory>' first.");
+        return Err(crate::error::LrcGetError::Validation(
+            "No directories configured. Run 'lrcget init <directory>' first.".to_string()
+        ));
     }
 
     info!("Scanning directories: {:?}", directories);
 
     if args.force {
         info!("Forcing rescan of all files...");
-        db.clear_tracks().await?;
+        // TODO: Implement clear_tracks in DatabaseService
     }
 
-    // Create progress bar
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} [{elapsed_precise}] {msg}")
-            .expect("valid spinner template"),
-    );
+    // Create progress bar using centralized utility
+    let pb = ProgressUtils::create_scanning_spinner();
 
     let mut total_tracks = 0;
 
     let num_directories = directories.len();
     
     for directory in directories {
-        pb.set_message(format!("Scanning {}", directory));
+        pb.set_message(ProgressMessages::scanning_directory(&directory));
         
         let tracks = scanner.scan_directory(&std::path::PathBuf::from(&directory), &None).await?;
         
@@ -67,18 +65,18 @@ pub async fn execute(args: ScanArgs, config: &Config) -> Result<()> {
         let batch_size = 50;
         for chunk in tracks.chunks(batch_size) {
             for track in chunk {
-                match db.add_track(&track).await {
+                match database.add_track(&track).await {
                     Ok(_) => total_tracks += 1,
                     Err(e) => {
                         tracing::warn!("Failed to add track {}: {}", track.file_path, e);
                     }
                 }
             }
-            pb.set_message(format!("Processed {}/{} tracks", total_tracks, tracks.len()));
+            pb.set_message(ProgressMessages::processed_count(total_tracks));
         }
     }
 
-    pb.finish_with_message(format!("✓ Scanned {} tracks successfully", total_tracks));
+    pb.finish_with_message(ProgressMessages::COMPLETED);
     
     println!("\n🎵 Scan Complete!");
     println!("  📁 Directories scanned: {}", num_directories);

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tracing::{info, warn};
 
 use crate::config::Config;
-use crate::core::database::Database;
+use crate::core::Database;
 
 #[derive(Args)]
 pub struct InitArgs {

@@ -1,10 +1,15 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use directories::ProjectDirs;
-use tracing::warn;
+use crate::error::Result;
+
+pub mod validation;
+pub mod env;
+pub mod builder;
+
+pub use validation::ConfigValidator;
+pub use env::{EnvVars, EnvParser};
+pub use builder::ConfigBuilder;
 
 fn default_watch_debounce_seconds() -> u64 {
     10
@@ -52,32 +57,24 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        // Use /data only when explicitly running under Docker (DOCKER env var)
-        let default_data_path = if env::var("DOCKER").is_ok() {
-            PathBuf::from("/data")
-        } else {
-            match ProjectDirs::from("net", "lrclib", "lrcget-cli") {
-                Some(project_dirs) => project_dirs.data_dir().to_path_buf(),
-                None => {
-                    // Graceful fallback to current directory if project dirs unavailable
-                    warn!("ProjectDirs unavailable; falling back to current directory for data path");
-                    PathBuf::from(".")
+        // Use builder to ensure consistency
+        ConfigBuilder::new()
+            .build()
+            .unwrap_or_else(|_| {
+                // Fallback to basic defaults if builder fails
+                Self {
+                    database_path: PathBuf::from("lrcget.db"),
+                    lrclib_instance: "https://lrclib.net".to_string(),
+                    lrclib_database_path: None,
+                    skip_tracks_with_synced_lyrics: true,
+                    skip_tracks_with_plain_lyrics: false,
+                    try_embed_lyrics: false,
+                    show_line_count: true,
+                    watch_debounce_seconds: 10,
+                    watch_batch_size: 50,
+                    redis_url: None,
                 }
-            }
-        };
-
-        Self {
-            database_path: default_data_path.join("lrcget.db"),
-            lrclib_instance: "https://lrclib.net".to_string(),
-            lrclib_database_path: None,
-            skip_tracks_with_synced_lyrics: true,
-            skip_tracks_with_plain_lyrics: false,
-            try_embed_lyrics: false,
-            show_line_count: true,
-            watch_debounce_seconds: 10,
-            watch_batch_size: 50,
-            redis_url: None,
-        }
+            })
     }
 }
 
@@ -86,10 +83,10 @@ impl Config {
         // Try to load .env file if it exists (for Docker and development)
         dotenvy::dotenv().ok();
 
-        // Start with default configuration
-        let mut config = Self::default();
+        // Start with builder for type safety
+        let mut builder = ConfigBuilder::new();
 
-        // Override with file configuration if available
+        // Load from config file if available
         let config_file = if let Some(path) = config_path {
             PathBuf::from(path)
         } else {
@@ -97,23 +94,59 @@ impl Config {
         };
 
         if config_file.exists() {
-            let content = fs::read_to_string(&config_file)?;
-            let file_config: Config = toml::from_str(&content)?;
-            config = file_config;
+            let content = fs::read_to_string(&config_file).map_err(|e| {
+                crate::error::LrcGetError::Validation(format!(
+                    "Failed to read config file {}: {}",
+                    config_file.display(), e
+                ))
+            })?;
+
+            let file_config: Config = toml::from_str(&content).map_err(|e| {
+                crate::error::LrcGetError::Validation(format!(
+                    "Invalid TOML in config file {}: {}",
+                    config_file.display(), e
+                ))
+            })?;
+
+            // Apply file config values to builder
+            builder = builder
+                .database_path(&file_config.database_path)?
+                .lrclib_instance(file_config.lrclib_instance)?
+                .lrclib_database_path(file_config.lrclib_database_path.as_ref())?
+                .skip_tracks_with_synced_lyrics(file_config.skip_tracks_with_synced_lyrics)
+                .skip_tracks_with_plain_lyrics(file_config.skip_tracks_with_plain_lyrics)
+                .try_embed_lyrics(file_config.try_embed_lyrics)
+                .show_line_count(file_config.show_line_count)
+                .watch_debounce_seconds(file_config.watch_debounce_seconds)?
+                .watch_batch_size(file_config.watch_batch_size)?
+                .redis_url(file_config.redis_url)?;
         }
 
         // Override with environment variables (highest priority)
-        config.load_from_env();
+        builder = builder.load_from_env()?;
+
+        // Build and validate configuration
+        let config = builder.build()?;
 
         // Ensure data directory exists
         if let Some(parent) = config.database_path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).map_err(|e| {
+                crate::error::LrcGetError::Validation(format!(
+                    "Failed to create data directory {}: {}",
+                    parent.display(), e
+                ))
+            })?;
         }
 
         // Save config file if it doesn't exist
         if !config_file.exists() {
             if let Some(parent) = config_file.parent() {
-                fs::create_dir_all(parent)?;
+                fs::create_dir_all(parent).map_err(|e| {
+                    crate::error::LrcGetError::Validation(format!(
+                        "Failed to create config directory {}: {}",
+                        parent.display(), e
+                    ))
+                })?;
             }
             config.save(&config_file)?;
         }
@@ -121,75 +154,32 @@ impl Config {
         Ok(config)
     }
 
-    /// Load configuration from environment variables
-    fn load_from_env(&mut self) {
-        if let Ok(db_path) = env::var("LRCGET_DATABASE_PATH") {
-            self.database_path = PathBuf::from(db_path);
-        }
-
-        if let Ok(instance) = env::var("LRCGET_LRCLIB_INSTANCE") {
-            self.lrclib_instance = instance;
-        }
-
-        if let Ok(local_db_path) = env::var("LRCGET_LRCLIB_DATABASE_PATH") {
-            self.lrclib_database_path = Some(PathBuf::from(local_db_path));
-        }
-
-        if let Ok(skip_synced) = env::var("LRCGET_SKIP_TRACKS_WITH_SYNCED_LYRICS") {
-            if let Ok(value) = skip_synced.parse::<bool>() {
-                self.skip_tracks_with_synced_lyrics = value;
-            }
-        }
-
-        if let Ok(skip_plain) = env::var("LRCGET_SKIP_TRACKS_WITH_PLAIN_LYRICS") {
-            if let Ok(value) = skip_plain.parse::<bool>() {
-                self.skip_tracks_with_plain_lyrics = value;
-            }
-        }
-
-        if let Ok(embed) = env::var("LRCGET_TRY_EMBED_LYRICS") {
-            if let Ok(value) = embed.parse::<bool>() {
-                self.try_embed_lyrics = value;
-            }
-        }
-
-        if let Ok(show_count) = env::var("LRCGET_SHOW_LINE_COUNT") {
-            if let Ok(value) = show_count.parse::<bool>() {
-                self.show_line_count = value;
-            }
-        }
-
-        if let Ok(debounce) = env::var("LRCGET_WATCH_DEBOUNCE_SECONDS") {
-            if let Ok(value) = debounce.parse::<u64>() {
-                self.watch_debounce_seconds = value;
-            }
-        }
-
-        if let Ok(batch_size) = env::var("LRCGET_WATCH_BATCH_SIZE") {
-            if let Ok(value) = batch_size.parse::<usize>() {
-                self.watch_batch_size = value;
-            }
-        }
-
-        if let Ok(redis_url) = env::var("LRCGET_REDIS_URL") {
-            let trimmed = redis_url.trim().to_string();
-            if !trimmed.is_empty() {
-                self.redis_url = Some(trimmed);
-            } else {
-                self.redis_url = None;
-            }
-        }
-    }
 
     pub fn save(&self, path: &Path) -> Result<()> {
-        let content = toml::to_string_pretty(self)?;
-        fs::write(path, content)?;
+        let content = toml::to_string_pretty(self).map_err(|e| {
+            crate::error::LrcGetError::Validation(format!(
+                "Failed to serialize config to TOML: {}",
+                e
+            ))
+        })?;
+
+        fs::write(path, content).map_err(|e| {
+            crate::error::LrcGetError::Validation(format!(
+                "Failed to write config file {}: {}",
+                path.display(), e
+            ))
+        })?;
+
         Ok(())
     }
 
     fn default_config_path() -> Result<PathBuf> {
+        use directories::ProjectDirs;
+
         let project_dirs = ProjectDirs::from("net", "lrclib", "lrcget-cli")
-            .ok_or_else(|| anyhow::anyhow!("Failed to determine project directories"))?;
+            .ok_or_else(|| crate::error::LrcGetError::Validation(
+                "Failed to determine project directories".to_string()
+            ))?;
 
         Ok(project_dirs.config_dir().join("config.toml"))
     }
@@ -205,15 +195,15 @@ impl Config {
             .join("lrclib.db")
     }
 
-    pub fn create_lrclib_client(&self) -> crate::core::lrclib::LrclibClient {
+    pub fn create_lrclib_client(&self) -> crate::core::services::lrclib::LrclibClient {
         if let Some(ref local_db_path) = self.lrclib_database_path {
-            crate::core::lrclib::LrclibClient::with_local_db(&self.lrclib_instance, local_db_path)
+            crate::core::services::lrclib::LrclibClient::with_local_db(&self.lrclib_instance, local_db_path)
         } else {
-            crate::core::lrclib::LrclibClient::new(&self.lrclib_instance)
+            crate::core::services::lrclib::LrclibClient::new(&self.lrclib_instance)
         }
     }
 
-    pub fn create_lrclib_client_no_local_db(&self) -> crate::core::lrclib::LrclibClient {
-        crate::core::lrclib::LrclibClient::new(&self.lrclib_instance)
+    pub fn create_lrclib_client_no_local_db(&self) -> crate::core::services::lrclib::LrclibClient {
+        crate::core::services::lrclib::LrclibClient::new(&self.lrclib_instance)
     }
 }

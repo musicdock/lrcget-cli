@@ -4,9 +4,9 @@ use std::path::Path;
 use tracing::{info, warn};
 
 use crate::config::Config;
-use crate::core::scanner::Track;
-use crate::core::lrclib::LrclibClient;
-use crate::core::lyrics::LyricsManager;
+use crate::core::files::scanner::Track;
+use crate::core::services::lrclib::LrclibClient;
+use crate::core::files::lyrics::LyricsManager;
 
 #[derive(Args)]
 pub struct FetchArgs {
@@ -199,7 +199,7 @@ pub async fn execute(args: FetchArgs, config: &Config) -> Result<()> {
     Ok(())
 }
 
-fn find_best_match<'a>(track: &Track, results: &'a [crate::core::lrclib::SearchResult]) -> Option<&'a crate::core::lrclib::SearchResult> {
+fn find_best_match<'a>(track: &Track, results: &'a [crate::core::services::lrclib::SearchResult]) -> Option<&'a crate::core::services::lrclib::SearchResult> {
     let mut best_score = 0.0;
     let mut best_match = None;
     

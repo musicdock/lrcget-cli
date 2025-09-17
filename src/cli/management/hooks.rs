@@ -3,7 +3,7 @@ use anyhow::Result;
 use tracing::info;
 
 use crate::config::Config;
-use crate::core::hooks::{HookManager, create_sample_hook_config};
+use crate::core::infrastructure::hooks::{HookManager, create_sample_hook_config};
 
 #[derive(Args)]
 pub struct HooksArgs {
@@ -92,7 +92,7 @@ pub async fn execute(args: HooksArgs, config: &Config) -> Result<()> {
             let mut hook_manager = HookManager::new();
             hook_manager.load_from_config(&hooks_config_path)?;
 
-            use crate::core::hooks::{HookEvent, HookContext};
+            use crate::core::infrastructure::hooks::{HookEvent, HookContext};
             use std::collections::HashMap;
 
             let hook_event = match event {

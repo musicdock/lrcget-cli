@@ -3,7 +3,7 @@ use std::fs::{remove_file, write};
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 
-use crate::core::database::DatabaseTrack;
+use crate::core::data::database::DatabaseTrack;
 
 pub struct LyricsManager;
 

@@ -1,15 +1,18 @@
 use clap::{Parser, Subcommand};
-use anyhow::Result;
 
 mod cli;
 mod config;
 mod core;
+mod error;
+mod services;
 mod signal_handler;
 mod ui;
 mod utils;
 
 use cli::*;
 use config::Config;
+use error::Result;
+use services::SimpleServices;
 
 #[derive(Parser)]
 #[command(name = "lrcget")]
@@ -77,24 +80,36 @@ async fn main() -> Result<()> {
     let suppress_logs = matches!(ui_mode, ui::UiMode::Terminal);
 
     // Initialize logging
-    utils::logging::init_logging(cli.verbose, suppress_logs)?;
+    utils::logging::init_logging(cli.verbose, suppress_logs)
+        .map_err(|e| error::LrcGetError::Internal(e))?;
 
     // Load configuration
     let config = Config::load(cli.config.as_deref())?;
 
-    // Execute command
+    // Initialize services
+    let services = SimpleServices::new(config);
+
+    // Execute command with services
+    let config = services.config();
     match cli.command {
-        Commands::Init(args) => init::execute(args, &config).await,
-        Commands::Scan(args) => scan::execute(args, &config).await,
+        Commands::Init(args) => init::execute(args, &config).await
+            .map_err(|e| error::LrcGetError::Internal(e)),
+        Commands::Scan(args) => scan::execute(args, &services).await,
         Commands::Download(args) => download::execute(args, &config).await,
-        Commands::Search(args) => search::execute(args, &config).await,
-        Commands::Fetch(args) => fetch::execute(args, &config).await,
+        Commands::Search(args) => search::execute(args, &services).await,
+        Commands::Fetch(args) => fetch::execute(args, &config).await
+            .map_err(|e| error::LrcGetError::Internal(e)),
         Commands::Config(args) => cli::config::execute(args, &config).await,
-        Commands::Export(args) => export::execute(args, &config).await,
+        Commands::Export(args) => export::execute(args, &config).await
+            .map_err(|e| error::LrcGetError::Internal(e)),
         Commands::Batch(args) => batch::execute(args, &config).await,
-        Commands::Cache(args) => cache::execute(args, &config).await,
-        Commands::Hooks(args) => cli::hooks::execute(args, &config).await,
-        Commands::Templates(args) => cli::templates::execute(args, &config).await,
-        Commands::Watch(args) => cli::watch::execute(args, &config).await,
+        Commands::Cache(args) => cache::execute(args, &config).await
+            .map_err(|e| error::LrcGetError::Internal(e)),
+        Commands::Hooks(args) => cli::hooks::execute(args, &config).await
+            .map_err(|e| error::LrcGetError::Internal(e)),
+        Commands::Templates(args) => cli::templates::execute(args, &config).await
+            .map_err(|e| error::LrcGetError::Internal(e)),
+        Commands::Watch(args) => cli::watch::execute(args, &config).await
+            .map_err(|e| error::LrcGetError::Internal(e)),
     }
 }

@@ -4,8 +4,8 @@ use tracing::info;
 use std::fs;
 
 use crate::config::Config;
-use crate::core::database::Database;
-use crate::core::templates::{TemplateEngine, create_sample_template_config, build_context};
+use crate::core::data::database::Database;
+use crate::core::infrastructure::templates::{TemplateEngine, create_sample_template_config, build_context};
 
 #[derive(Args)]
 pub struct TemplatesArgs {
@@ -187,7 +187,7 @@ pub async fn execute(args: TemplatesArgs, config: &Config) -> Result<()> {
             }
 
             // Create sample data for testing
-            use crate::core::database::DatabaseTrack;
+            use crate::core::data::database::DatabaseTrack;
             let sample_tracks = vec![
                 DatabaseTrack {
                     id: 1,

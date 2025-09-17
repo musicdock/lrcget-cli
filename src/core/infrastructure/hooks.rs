@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use tokio::process::Command as AsyncCommand;
 use tracing::{debug, warn, info};
 
-use crate::core::database::DatabaseTrack;
+use crate::core::data::database::DatabaseTrack;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum HookEvent {

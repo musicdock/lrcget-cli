@@ -1,9 +1,8 @@
 use clap::Args;
-use anyhow::Result;
 use tracing::info;
 
-use crate::config::Config;
-use crate::core::lrclib::LrclibClient;
+use crate::error::Result;
+use crate::services::SimpleServices;
 
 #[derive(Args)]
 pub struct SearchArgs {
@@ -52,12 +51,8 @@ pub struct SearchArgs {
     apply_to_matches: bool,
 }
 
-pub async fn execute(args: SearchArgs, config: &Config) -> Result<()> {
-    let client = if std::env::var("FORCE_API_ONLY").is_ok() {
-        config.create_lrclib_client_no_local_db()
-    } else {
-        config.create_lrclib_client()
-    };
+pub async fn execute(args: SearchArgs, services: &SimpleServices) -> Result<()> {
+    let client = services.create_lrclib_client();
 
     info!("Searching for lyrics...");
 
@@ -66,7 +61,8 @@ pub async fn execute(args: SearchArgs, config: &Config) -> Result<()> {
         args.artist.as_deref().unwrap_or(""),
         args.album.as_deref().unwrap_or(""),
         args.query.as_deref().unwrap_or(""),
-    ).await?;
+    ).await
+    .map_err(crate::error::LrcGetError::Internal)?;
 
     // Apply filters
     if args.instrumental_only {
@@ -91,12 +87,12 @@ pub async fn execute(args: SearchArgs, config: &Config) -> Result<()> {
 
     // Handle apply-to-track option
     if let Some(track_id) = args.apply_to_track {
-        return handle_apply_to_track(track_id, &results, config).await;
+        return handle_apply_to_track(track_id, &results, services).await;
     }
 
     // Handle apply-to-matches option
     if args.apply_to_matches {
-        return handle_apply_to_matches(&results, &args, config).await;
+        return handle_apply_to_matches(&results, &args, services).await;
     }
 
     // Output results in the specified format
@@ -109,12 +105,9 @@ pub async fn execute(args: SearchArgs, config: &Config) -> Result<()> {
     Ok(())
 }
 
-async fn handle_apply_to_track(track_id: i64, results: &[crate::core::lrclib::SearchResult], config: &Config) -> Result<()> {
-    use crate::core::database::Database;
-    use crate::core::lrclib::LyricsDownloader;
-    
+async fn handle_apply_to_track(track_id: i64, results: &[crate::core::services::lrclib::SearchResult], _services: &SimpleServices) -> Result<()> {
     if results.is_empty() {
-        anyhow::bail!("No search results to apply");
+        return Err(crate::error::LrcGetError::Validation("No search results to apply".to_string()));
     }
 
     println!("Applying lyrics to track ID: {}", track_id);
@@ -143,9 +136,9 @@ async fn handle_apply_to_track(track_id: i64, results: &[crate::core::lrclib::Se
     Ok(())
 }
 
-async fn handle_apply_to_matches(results: &[crate::core::lrclib::SearchResult], args: &SearchArgs, config: &Config) -> Result<()> {
-    use crate::core::database::Database;
-    use crate::core::lyrics::LyricsManager;
+async fn handle_apply_to_matches(results: &[crate::core::services::lrclib::SearchResult], args: &SearchArgs, services: &SimpleServices) -> Result<()> {
+    // Database access handled through services
+    use crate::core::files::lyrics::LyricsManager;
     
     if results.is_empty() {
         println!("No search results to apply to matching tracks");
@@ -153,7 +146,7 @@ async fn handle_apply_to_matches(results: &[crate::core::lrclib::SearchResult], 
     }
 
     // Connect to database
-    let db = Database::new(&config.database_path).await?;
+    let db = services.create_database().await?;
     let mut tracks = db.get_all_tracks().await?;
 
     // Apply title filter if provided
@@ -239,7 +232,7 @@ async fn handle_apply_to_matches(results: &[crate::core::lrclib::SearchResult], 
     Ok(())
 }
 
-fn find_best_match<'a>(track: &crate::core::database::DatabaseTrack, results: &'a [crate::core::lrclib::SearchResult]) -> Option<&'a crate::core::lrclib::SearchResult> {
+fn find_best_match<'a>(track: &crate::core::data::database::DatabaseTrack, results: &'a [crate::core::services::lrclib::SearchResult]) -> Option<&'a crate::core::services::lrclib::SearchResult> {
     let mut best_score = 0.0;
     let mut best_match = None;
     
@@ -303,13 +296,14 @@ fn find_best_match<'a>(track: &crate::core::database::DatabaseTrack, results: &'
     }
 }
 
-fn output_json(results: &[crate::core::lrclib::SearchResult]) -> Result<()> {
-    let json = serde_json::to_string_pretty(results)?;
+fn output_json(results: &[crate::core::services::lrclib::SearchResult]) -> Result<()> {
+    let json = serde_json::to_string_pretty(results)
+        .map_err(|e| crate::error::LrcGetError::Internal(e.into()))?;
     println!("{}", json);
     Ok(())
 }
 
-fn output_detailed(results: &[crate::core::lrclib::SearchResult]) {
+fn output_detailed(results: &[crate::core::services::lrclib::SearchResult]) {
     use crossterm::{
         style::{Color, SetForegroundColor, ResetColor},
         execute,
@@ -369,7 +363,7 @@ fn output_detailed(results: &[crate::core::lrclib::SearchResult]) {
     }
 }
 
-fn output_table(results: &[crate::core::lrclib::SearchResult]) {
+fn output_table(results: &[crate::core::services::lrclib::SearchResult]) {
     use crossterm::{
         style::{Color, SetForegroundColor, ResetColor},
         execute,

@@ -46,6 +46,7 @@ thiserror = "1.0"
 secular = { version = "1.0.1", features = ["bmp", "normalization"] }
 collapse = "0.1.2"
 regex = "1.10.4"
+url = "2.5"
 
 # LRC parsing
 lrc = "0.1.8"

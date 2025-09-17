@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
-use crate::core::lrclib::SearchResult;
+use crate::core::services::lrclib::SearchResult;
 
 #[derive(Debug)]
 pub struct LrclibDatabase {
@@ -219,7 +219,7 @@ impl LrclibDatabase {
                 plain_lyrics: row.get(5)?,
                 synced_lyrics: row.get(6)?,
                 instrumental: row.get::<_, Option<bool>>(7)?.unwrap_or(false),
-                source: crate::core::lrclib::SearchResultSource::LocalDb,
+                source: crate::core::services::lrclib::SearchResultSource::LocalDb,
             })
         });
         
@@ -314,7 +314,7 @@ impl LrclibDatabase {
                 plain_lyrics: row.get(5)?,
                 synced_lyrics: row.get(6)?,
                 instrumental: row.get::<_, Option<bool>>(7)?.unwrap_or(false),
-                source: crate::core::lrclib::SearchResultSource::LocalDb,
+                source: crate::core::services::lrclib::SearchResultSource::LocalDb,
             })
         })?
         .collect::<Result<Vec<SearchResult>, _>>()?;
@@ -474,7 +474,7 @@ impl LrclibDatabase {
                     instrumental: instrumental.unwrap_or(false),
                     plain_lyrics,
                     synced_lyrics,
-                    source: crate::core::lrclib::SearchResultSource::LocalDb,
+                    source: crate::core::services::lrclib::SearchResultSource::LocalDb,
                 }));
             }
         }
