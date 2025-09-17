@@ -1,0 +1,31 @@
+# Build artifacts
+target/
+Cargo.lock
+
+# Development files
+.git/
+.gitignore
+README.md
+*.md
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local config and data
+config.toml
+*.db
+*.db-*
+cache/
+
+# Docker files (not needed in container)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Log files
+*.log

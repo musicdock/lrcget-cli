@@ -1,0 +1,42 @@
+📊 Music Library Summary
+═══════════════════════════════════════
+
+🎵 Library Statistics
+─────────────────────
+Total Tracks:     {{stats.total_tracks}}
+Unique Artists:   {{stats.unique_artists}}
+Unique Albums:    {{stats.unique_albums}}
+Generated:        {{format_date timestamp "%Y-%m-%d %H:%M:%S UTC"}}
+LRCGET Version:   {{version}}
+
+📝 Lyrics Coverage
+──────────────────
+Synced Lyrics:    {{stats.tracks_with_synced_lyrics}} tracks
+Plain Lyrics:     {{stats.tracks_with_plain_lyrics}} tracks
+Any Lyrics:       {{stats.tracks_with_any_lyrics}} tracks
+Missing Lyrics:   {{stats.tracks_missing_lyrics}} tracks
+Coverage Rate:    {{format_percentage stats.coverage_percentage 1}}
+
+{{#if (gt stats.tracks_missing_lyrics 0)}}
+❌ Top Missing Lyrics Tracks
+────────────────────────────
+{{#each tracks}}
+{{#unless lrc_lyrics}}
+{{#unless txt_lyrics}}
+• {{artist_name}} - {{title}} ({{album_name}})
+{{/unless}}
+{{/unless}}
+{{/each}}
+{{/if}}
+
+💡 Recommendations
+──────────────────
+{{#if (lt stats.coverage_percentage 80)}}
+🔍 Consider running: lrcget download --missing-lyrics
+{{/if}}
+{{#if (gt stats.tracks_missing_lyrics 100)}}
+📋 For bulk processing: lrcget batch download missing_lyrics.json
+{{/if}}
+{{#if (eq stats.coverage_percentage 100)}}
+🎉 Perfect! All your tracks have lyrics!
+{{/if}}

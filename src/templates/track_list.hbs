@@ -1,0 +1,14 @@
+🎵 Music Library Track List
+═══════════════════════════
+
+{{#each tracks}}
+{{@index}} - {{artist_name}} - {{title}}
+   Album: {{album_name}}
+   Duration: {{format_duration duration}}
+   Lyrics: {{#if lrc_lyrics}}🎼{{else}}  {{/if}} {{#if txt_lyrics}}📝{{else}}  {{/if}}
+   {{#unless lrc_lyrics}}{{#unless txt_lyrics}}❌ Missing{{/unless}}{{/unless}}
+
+{{/each}}
+
+Total: {{stats.total_tracks}} tracks
+Coverage: {{format_percentage stats.coverage_percentage 1}}

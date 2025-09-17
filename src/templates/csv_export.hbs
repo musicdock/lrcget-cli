@@ -1,0 +1,3 @@
+Artist,Title,Album,Duration,Has Synced Lyrics,Has Plain Lyrics,File Path
+{{#each tracks}}{{escape_csv artist_name}},{{escape_csv title}},{{escape_csv album_name}},{{duration}},{{#if lrc_lyrics}}true{{else}}false{{/if}},{{#if txt_lyrics}}true{{else}}false{{/if}},{{escape_csv file_path}}
+{{/each}}
