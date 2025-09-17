@@ -18,14 +18,14 @@ LRCGET CLI integrates with the LRCLIB API to automatically fetch lyrics for your
 
 ## 📋 Table of Contents
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Commands](#commands)
-- [Configuration](#configuration)
-- [Docker Deployment](#docker-deployment)
-- [Advanced Features](#advanced-features)
-- [Examples](#examples)
-- [Troubleshooting](#troubleshooting)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Commands](#-commands)
+- [Configuration](#-configuration)
+- [Docker Deployment](#-docker-deployment)
+- [Advanced Features](#-advanced-features)
+- [Examples](#-examples)
+- [Troubleshooting](#-troubleshooting)
 
 ## 🚀 Installation
 
@@ -33,7 +33,7 @@ LRCGET CLI integrates with the LRCLIB API to automatically fetch lyrics for your
 
 ```bash
 # Clone the repository
-git clone https://github.com/tranxuanthang/lrcget
+git clone https://github.com/musicdock/lrcget
 cd lrcget-cli
 
 # Build release binary
@@ -647,5 +647,6 @@ This project is licensed under the MIT License. See the LICENSE file for details
 ## 🙏 Acknowledgments
 
 - [LRCLIB](https://lrclib.net) - The excellent lyrics database API
+- [LRCGET](https://github.com/tranxuanthang/lrcget) - Original GUI project 
 - [Lofty](https://github.com/Serial-ATA/lofty) - Audio metadata extraction
 - [Ratatui](https://ratatui.rs) - Terminal user interface
