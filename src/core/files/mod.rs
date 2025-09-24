@@ -8,5 +8,3 @@ pub mod scanner;
 pub mod lyrics;
 
 // Re-export main types
-pub use scanner::{Scanner, Track};
-pub use lyrics::LyricsManager;

@@ -7,7 +7,6 @@ pub mod validation;
 pub mod env;
 pub mod builder;
 
-pub use env::EnvVars;
 pub use builder::ConfigBuilder;
 
 fn default_watch_debounce_seconds() -> u64 {
