@@ -1,5 +1,5 @@
 # Multi-stage build for smaller final image
-FROM rust:1.80-alpine AS builder
+FROM rust:1.89-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \

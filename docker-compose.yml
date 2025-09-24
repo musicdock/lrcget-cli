@@ -3,34 +3,23 @@ version: '3.8'
 services:
   lrcget:
     build: .
-    container_name: lrcget-cli
-    environment:
-      # Database configuration
-      - LRCGET_DATABASE_PATH=/data/lrcget.db
-      
-      # LRCLIB configuration
-      - LRCGET_LRCLIB_INSTANCE=https://lrclib.net
-      # Optional: Path to local LRCLIB database for faster searches
-      # - LRCGET_LRCLIB_DATABASE_PATH=/data/lrclib.db
-      
-      # Behavior configuration
-      - LRCGET_SKIP_TRACKS_WITH_SYNCED_LYRICS=true
-      - LRCGET_SKIP_TRACKS_WITH_PLAIN_LYRICS=false
-      - LRCGET_TRY_EMBED_LYRICS=false
-      - LRCGET_SHOW_LINE_COUNT=true
-      
-      # Logging
-      - RUST_LOG=info
     volumes:
-      # Persistent data storage
       - lrcget_data:/data
-      # Mount your music library (read-only recommended)
-      - /path/to/your/music:/music:ro
-    restart: unless-stopped
-    # Remove this line if you want the container to exit after running once
-    tty: true
-    stdin_open: true
+      - /home/diego/Code/Ninja/musicdock/stack/media/music:/music  # Mount your music library as read-only
+    environment:
+      - LRCGET_DATABASE_PATH=/data/lrcget.db
+      - LRCGET_LRCLIB_DATABASE_PATH=/data/lrclib.db  # Optional
+      - LRCGET_REDIS_URL=redis://redis:6379  # Optional Redis cache
+      - RUST_LOG=info
+    depends_on:
+      - redis  # Optional
+
+  redis:  # Optional caching service
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
 
 volumes:
   lrcget_data:
-    driver: local
+  redis_data:

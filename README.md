@@ -6,6 +6,8 @@ A powerful command-line utility for mass-downloading synchronized and plain lyri
 
 LRCGET CLI integrates with the LRCLIB API to automatically fetch lyrics for your music collection. It features intelligent caching, fuzzy search, parallel processing, and real-time file monitoring to keep your library synchronized with the latest lyrics.
 
+This is an early-beta release, so expect bugs and missing features. 
+
 ### Key Features
 
 - **🚀 High Performance**: Parallel downloads with configurable concurrency
@@ -18,8 +20,8 @@ LRCGET CLI integrates with the LRCLIB API to automatically fetch lyrics for your
 
 ## 📋 Table of Contents
 
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
+- [Installation](#-installation)`
+- [Quick Start](#-quick-start)`
 - [Commands](#-commands)
 - [Configuration](#-configuration)
 - [Docker Deployment](#-docker-deployment)
@@ -650,3 +652,4 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - [LRCGET](https://github.com/tranxuanthang/lrcget) - Original GUI project 
 - [Lofty](https://github.com/Serial-ATA/lofty) - Audio metadata extraction
 - [Ratatui](https://ratatui.rs) - Terminal user interface
+
