@@ -1,7 +1,6 @@
 use clap::Args;
 use tracing::{info, warn};
 
-use crate::error::Result;
 use crate::services::ServiceFactory;
 use crate::core::services::lrclib::LyricsDownloader;
 use crate::core::infrastructure::cache::{LyricsCache, LyricsCacheInterface};
@@ -133,8 +132,8 @@ pub async fn execute(args: DownloadArgs, config: &crate::config::Config) -> crat
                           atty::is(atty::Stream::Stdout));
 
     // Start UI update task with signal monitoring
-    let ui_update_signal_handler = signal_handler.clone();
-    let ui_update_progress = progress_state.clone();
+    let _ui_update_signal_handler = signal_handler.clone();
+    let _ui_update_progress = progress_state.clone();
 
     // For now, we'll skip the UI update task and handle it differently
     // let _ui_update_task = tokio::spawn(async move { ... });

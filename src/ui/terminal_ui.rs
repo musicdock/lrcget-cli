@@ -3,7 +3,7 @@ use crossterm::{
     cursor,
     execute,
     style::{Color, Print, ResetColor, SetForegroundColor},
-    terminal::{self, Clear, ClearType},
+    terminal::{self},
 };
 use std::io::{self, Write};
 use std::time::Instant;

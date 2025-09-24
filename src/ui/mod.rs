@@ -52,7 +52,7 @@ pub trait ProgressInterface: Send + Sync {
     async fn update_progress(&mut self, state: &ProgressState);
 
     /// Update the progress with current state and optional controls text
-    async fn update_progress_with_controls(&mut self, state: &ProgressState, controls_text: Option<&str>) {
+    async fn update_progress_with_controls(&mut self, state: &ProgressState, _controls_text: Option<&str>) {
         // Default implementation just calls update_progress
         self.update_progress(state).await;
     }

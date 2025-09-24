@@ -4,7 +4,7 @@
 //! music track information, including metadata and lyrics storage paths.
 
 use anyhow::Result;
-use rusqlite::{Connection, params, named_params};
+use rusqlite::{Connection, params};
 use serde::Serialize;
 use std::path::Path;
 use tracing::{debug, info};

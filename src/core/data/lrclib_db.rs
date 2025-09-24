@@ -1,9 +1,7 @@
 use anyhow::Result;
-use rusqlite::{Connection, params, Row};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::path::Path;
 use tracing::{debug, info};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;

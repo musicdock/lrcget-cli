@@ -8,7 +8,6 @@
 
 use std::sync::Arc;
 use crate::config::Config;
-use crate::core::data::database::Database;
 use crate::core::services::lrclib::{LrclibClient as LrcLibClient, LyricsDownloader as Downloader};
 use crate::core::files::scanner::Scanner;
 use crate::core::infrastructure::cache::CacheService;
@@ -24,7 +23,7 @@ pub mod factory;
 pub use database::DatabaseService;
 // pub use client_factory::ClientFactory;
 pub use simple_container::SimpleServices;
-pub use factory::{ServiceFactory, ServiceBundle};
+pub use factory::ServiceFactory;
 
 #[async_trait::async_trait]
 pub trait ServiceProvider {

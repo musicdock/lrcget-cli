@@ -1,11 +1,10 @@
 use clap::Args;
 use anyhow::Result;
 use std::path::Path;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::config::Config;
 use crate::core::files::scanner::Track;
-use crate::core::services::lrclib::LrclibClient;
 use crate::core::files::lyrics::LyricsManager;
 
 #[derive(Args)]

@@ -1,6 +1,5 @@
 use clap::{Args, Subcommand};
 use anyhow::Result;
-use tracing::info;
 use std::fs;
 
 use crate::config::Config;

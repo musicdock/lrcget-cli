@@ -264,7 +264,7 @@ impl LrclibClient {
                             let lyrics: SearchResult = response.json().await?;
                             
                             // Update local database if we have one and got results from API
-                            if let Some(ref db_path) = self.local_db_path {
+                            if let Some(ref _db_path) = self.local_db_path {
                                 if let Err(e) = self.update_local_db(&lyrics, title, artist, album, duration).await {
                                     warn!("Failed to update local database: {}", e);
                                 }

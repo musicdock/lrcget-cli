@@ -10,7 +10,3 @@ pub mod download;
 pub mod search;
 
 // Re-export for convenience
-pub use init::*;
-pub use scan::*;
-pub use download::*;
-pub use search::*;

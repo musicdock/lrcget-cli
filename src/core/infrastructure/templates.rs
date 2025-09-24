@@ -1,10 +1,10 @@
 use anyhow::Result;
-use handlebars::{Handlebars, Helper, Context, RenderContext, Output, HelperResult, RenderError, no_escape};
+use handlebars::{Handlebars, Helper, Context, RenderContext, Output, HelperResult, RenderError, RenderErrorReason};
 use serde::{Serialize, Deserialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::{debug, warn, info};
+use tracing::{debug, info};
 
 use crate::core::data::database::DatabaseTrack;
 
@@ -135,7 +135,7 @@ fn format_duration(
 ) -> HelperResult {
     let duration = h.param(0)
         .and_then(|v| v.value().as_f64())
-        .ok_or_else(|| RenderError::new("Duration parameter required"))?;
+        .ok_or_else(|| RenderError::from(RenderErrorReason::Other("Duration parameter required".to_string())))?;
 
     let hours = (duration as u64) / 3600;
     let minutes = ((duration as u64) % 3600) / 60;
@@ -160,7 +160,7 @@ fn format_percentage(
 ) -> HelperResult {
     let percentage = h.param(0)
         .and_then(|v| v.value().as_f64())
-        .ok_or_else(|| RenderError::new("Percentage parameter required"))?;
+        .ok_or_else(|| RenderError::from(RenderErrorReason::Other("Percentage parameter required".to_string())))?;
 
     let precision = h.param(1)
         .and_then(|v| v.value().as_u64())
@@ -179,11 +179,11 @@ fn truncate(
 ) -> HelperResult {
     let text = h.param(0)
         .and_then(|v| v.value().as_str())
-        .ok_or_else(|| RenderError::new("Text parameter required"))?;
+        .ok_or_else(|| RenderError::from(RenderErrorReason::Other("Text parameter required".to_string())))?;
 
     let max_length = h.param(1)
         .and_then(|v| v.value().as_u64())
-        .ok_or_else(|| RenderError::new("Max length parameter required"))? as usize;
+        .ok_or_else(|| RenderError::from(RenderErrorReason::Other("Max length parameter required".to_string())))? as usize;
 
     let truncated = if text.len() > max_length {
         format!("{}...", &text[..max_length.saturating_sub(3)])
@@ -204,7 +204,7 @@ fn capitalize(
 ) -> HelperResult {
     let text = h.param(0)
         .and_then(|v| v.value().as_str())
-        .ok_or_else(|| RenderError::new("Text parameter required"))?;
+        .ok_or_else(|| RenderError::from(RenderErrorReason::Other("Text parameter required".to_string())))?;
 
     let capitalized = text.chars()
         .enumerate()
@@ -224,7 +224,7 @@ fn escape_csv(
 ) -> HelperResult {
     let text = h.param(0)
         .and_then(|v| v.value().as_str())
-        .ok_or_else(|| RenderError::new("Text parameter required"))?;
+        .ok_or_else(|| RenderError::from(RenderErrorReason::Other("Text parameter required".to_string())))?;
 
     let escaped = if text.contains(',') || text.contains('"') || text.contains('\n') {
         format!("\"{}\"", text.replace("\"", "\"\""))
@@ -245,7 +245,7 @@ fn format_date(
 ) -> HelperResult {
     let timestamp = h.param(0)
         .and_then(|v| v.value().as_str())
-        .ok_or_else(|| RenderError::new("Timestamp parameter required"))?;
+        .ok_or_else(|| RenderError::from(RenderErrorReason::Other("Timestamp parameter required".to_string())))?;
 
     let format = h.param(1)
         .and_then(|v| v.value().as_str())

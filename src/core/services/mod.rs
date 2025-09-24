@@ -7,4 +7,4 @@
 pub mod lrclib;
 
 // Re-export main types
-pub use lrclib::{LrclibClient, LyricsDownloader, LyricsResponse, SearchResult, LyricsDownloadResult};
+pub use lrclib::{LrclibClient, LyricsDownloader, LyricsResponse, SearchResult};

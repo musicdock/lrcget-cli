@@ -8,6 +8,3 @@ pub mod watch;
 pub mod batch;
 
 // Re-export for convenience
-pub use fetch::*;
-pub use watch::*;
-pub use batch::*;

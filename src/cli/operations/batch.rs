@@ -183,7 +183,7 @@ async fn execute_batch_download(args: BatchArgs, factory: &ServiceFactory, items
     info!("⬇️ Starting batch download for {} items", items.len());
 
     // Use ServiceFactory to eliminate duplication
-    let bundle = factory.create_full_bundle().await?;
+    let _bundle = factory.create_full_bundle().await?;
     let downloader = factory.create_lyrics_downloader();
     let start_time = std::time::Instant::now();
     
@@ -300,7 +300,7 @@ async fn execute_batch_search(args: BatchArgs, factory: &ServiceFactory, items: 
     info!("🔍 Starting batch search for {} items", items.len());
     
     let client = factory.create_lrclib_client();
-    let mut results: Vec<crate::core::services::lrclib::SearchResult> = Vec::new();
+    let _results: Vec<crate::core::services::lrclib::SearchResult> = Vec::new();
     
     for (i, item) in items.iter().enumerate() {
         info!("Searching {}/{}: {} - {}", i + 1, items.len(), item.artist, item.title);
@@ -322,7 +322,7 @@ async fn execute_batch_search(args: BatchArgs, factory: &ServiceFactory, items: 
     Ok(())
 }
 
-async fn execute_batch_validate(args: BatchArgs, factory: &ServiceFactory, items: Vec<BatchItem>) -> Result<()> {
+async fn execute_batch_validate(_args: BatchArgs, _factory: &ServiceFactory, items: Vec<BatchItem>) -> Result<()> {
     info!("✅ Starting batch validation for {} items", items.len());
     
     let mut valid_count = 0;

@@ -12,11 +12,6 @@ pub mod files;
 pub mod infrastructure;
 
 // Re-export commonly used types for convenience
-pub use data::{Database, LrclibDatabase, LrclibTrack};
-pub use services::{LrclibClient, LyricsDownloader, LyricsResponse, SearchResult};
-pub use files::{Scanner, Track, LyricsManager};
-pub use infrastructure::{LyricsCache, LyricsCacheInterface, CacheService, HookManager, HookEvent, TemplateEngine};
+pub use data::Database;
 
 // Legacy re-exports for backward compatibility
-pub use services::LrclibClient as LrcLibClient;
-pub use services::LyricsDownloader as Downloader;

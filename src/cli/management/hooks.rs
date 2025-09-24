@@ -1,6 +1,5 @@
 use clap::{Args, Subcommand};
 use anyhow::Result;
-use tracing::info;
 
 use crate::config::Config;
 use crate::core::infrastructure::hooks::{HookManager, create_sample_hook_config};
