@@ -1,7 +1,6 @@
 use clap::Args;
 use tracing::{info, warn};
 
-use crate::error::Result;
 use crate::services::ServiceFactory;
 use crate::core::services::lrclib::LyricsDownloader;
 use crate::core::infrastructure::cache::{LyricsCache, LyricsCacheInterface};
@@ -38,6 +37,10 @@ pub struct DownloadArgs {
     /// Dry run (don't actually download)
     #[arg(long)]
     dry_run: bool,
+
+    /// Enable fuzzy search as fallback when exact match fails
+    #[arg(long)]
+    fuzzy_search: bool,
 }
 
 pub async fn execute(args: DownloadArgs, config: &crate::config::Config) -> crate::error::Result<()> {
@@ -133,8 +136,8 @@ pub async fn execute(args: DownloadArgs, config: &crate::config::Config) -> crat
                           atty::is(atty::Stream::Stdout));
 
     // Start UI update task with signal monitoring
-    let ui_update_signal_handler = signal_handler.clone();
-    let ui_update_progress = progress_state.clone();
+    let _ui_update_signal_handler = signal_handler.clone();
+    let _ui_update_progress = progress_state.clone();
 
     // For now, we'll skip the UI update task and handle it differently
     // let _ui_update_task = tokio::spawn(async move { ... });
@@ -227,7 +230,7 @@ pub async fn execute(args: DownloadArgs, config: &crate::config::Config) -> crat
                     return;
                 }
 
-                let result = match downloader.download_for_track(&track).await {
+                let result = match downloader.download_for_track_with_fuzzy(&track, args.fuzzy_search).await {
                     Ok(lyrics_info) => {
                         // Check again after download completes
                         if signal_handler.get_state() == AppState::Stopping {

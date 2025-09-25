@@ -4,7 +4,7 @@ use tokio::signal;
 use tokio::sync::mpsc;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-    terminal::{self, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode},
 };
 use tracing::{info, warn};
 

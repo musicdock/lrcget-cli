@@ -1,6 +1,6 @@
 use clap::{Args, Subcommand};
 use crate::error::Result;
-use crate::config::{Config as AppConfig, ConfigBuilder, EnvVars};
+use crate::config::{Config as AppConfig, ConfigBuilder};
 
 #[derive(Args)]
 pub struct ConfigArgs {

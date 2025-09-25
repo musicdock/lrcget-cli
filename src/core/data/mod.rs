@@ -9,4 +9,3 @@ pub mod lrclib_db;
 
 // Re-export main types
 pub use database::Database;
-pub use lrclib_db::{LrclibDatabase, LrclibTrack};

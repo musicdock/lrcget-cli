@@ -5,7 +5,6 @@ use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::core::files::scanner::Track;
-use crate::core::services::lrclib::LrclibClient;
 use crate::core::files::lyrics::LyricsManager;
 
 #[derive(Args)]
@@ -25,6 +24,10 @@ pub struct FetchArgs {
     /// Show what would be done without actually downloading
     #[arg(long)]
     dry_run: bool,
+
+    /// Enable fuzzy search as fallback when exact match fails
+    #[arg(long)]
+    fuzzy_search: bool,
 }
 
 pub async fn execute(args: FetchArgs, config: &Config) -> Result<()> {
@@ -78,6 +81,9 @@ pub async fn execute(args: FetchArgs, config: &Config) -> Result<()> {
         }
     }
 
+    // Initialize database for saving track info
+    let mut db = crate::core::data::database::Database::new(&config.database_path).await?;
+
     // Search for lyrics
     info!("🔍 Searching for lyrics...");
     let client = config.create_lrclib_client();
@@ -117,6 +123,16 @@ pub async fn execute(args: FetchArgs, config: &Config) -> Result<()> {
             let lyrics_manager = LyricsManager::new();
             lyrics_manager.save_instrumental(&track.file_path)?;
             println!("✅ Saved instrumental marker");
+
+            // Save track to database
+            match db.add_track(&track).await {
+                Ok(()) => {
+                    info!("✅ Saved instrumental track to database");
+                }
+                Err(e) => {
+                    warn!("⚠️ Failed to save track to database: {}", e);
+                }
+            }
             return Ok(());
         }
 
@@ -134,16 +150,36 @@ pub async fn execute(args: FetchArgs, config: &Config) -> Result<()> {
         } else if let Some(_) = &lyrics_data.plain_lyrics {
             println!("✅ Saved plain lyrics (.txt)");
         }
+
+        // Save track to database
+        match db.add_track(&track).await {
+            Ok(()) => {
+                info!("✅ Saved track to database");
+            }
+            Err(e) => {
+                warn!("⚠️ Failed to save track to database: {}", e);
+            }
+        }
     } else {
         println!("❌ No exact match found, trying search...");
         
-        // Fallback to search
-        let search_results = client.search(
-            &track.title,
-            &track.artist,
-            &track.album,
-            "",
-        ).await?;
+        // Fallback to search (fuzzy if enabled)
+        let search_results = if args.fuzzy_search {
+            println!("🔍 Trying fuzzy search...");
+            client.fuzzy_search(
+                &track.title,
+                &track.artist,
+                &track.album,
+                "",
+            ).await?
+        } else {
+            client.search(
+                &track.title,
+                &track.artist,
+                &track.album,
+                "",
+            ).await?
+        };
 
         if search_results.is_empty() {
             println!("❌ No lyrics found for this track");
@@ -190,6 +226,16 @@ pub async fn execute(args: FetchArgs, config: &Config) -> Result<()> {
                 println!("✅ Saved synced lyrics (.lrc) from search result");
             } else if search_result.plain_lyrics.is_some() {
                 println!("✅ Saved plain lyrics (.txt) from search result");
+            }
+
+            // Save track to database
+            match db.add_track(&track).await {
+                Ok(()) => {
+                    info!("✅ Saved track to database");
+                }
+                Err(e) => {
+                    warn!("⚠️ Failed to save track to database: {}", e);
+                }
             }
         } else {
             println!("❌ No suitable match found in search results");

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tracing::Level;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::EnvFilter;
 
 pub fn init_logging(verbose: bool, suppress_logs: bool) -> Result<()> {
     // If logs are suppressed (Terminal UI mode), don't initialize tracing subscriber

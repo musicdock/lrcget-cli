@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use directories::ProjectDirs;
 use tracing::warn;
-use crate::error::{Result, LrcGetError};
+use crate::error::Result;
 use crate::config::validation::ConfigValidator;
 use crate::config::env::{EnvVars, EnvParser};
 use crate::config::Config;
