@@ -220,9 +220,13 @@ pub struct WatchArgs {
     #[arg(long)]
     dry_run: bool,
 
-    /// Scan entire directory on startup before watching
+    /// Scan entire directory on startup and download lyrics for existing files before watching
     #[arg(long)]
     initial_scan: bool,
+
+    /// Enable fuzzy search as fallback when exact match fails
+    #[arg(long)]
+    fuzzy_search: bool,
 }
 
 pub async fn execute(mut args: WatchArgs, config: &Config) -> Result<()> {
@@ -275,6 +279,37 @@ pub async fn execute(mut args: WatchArgs, config: &Config) -> Result<()> {
 
         session.files_detected += scan_results.len();
         log_with_timestamp("INFO", &format!("Initial scan completed: {} audio files found", scan_results.len()));
+
+        if !scan_results.is_empty() {
+            log_with_timestamp("INFO", "Processing existing files for lyrics download");
+
+            // Process existing files in batches to avoid overwhelming the system
+            let batch_size = args.batch_size;
+            let mut processed = 0;
+
+            for batch in scan_results.chunks(batch_size) {
+                log_with_timestamp("INFO", &format!("Processing batch: {} files ({}/{} total)",
+                    batch.len(), processed + batch.len(), scan_results.len()));
+
+                for track in batch {
+                    let path_buf = std::path::PathBuf::from(&track.file_path);
+                    if let Err(e) = process_file(&path_buf, &args, &mut db, &downloader, &scanner, &mut session).await {
+                        log_with_timestamp("ERROR", &format!("Error processing existing file {}: {}",
+                            truncate_path_for_log(&path_buf), e));
+                    }
+                }
+
+                processed += batch.len();
+
+                // Add a small delay between batches to prevent overwhelming the API
+                if processed < scan_results.len() {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                }
+            }
+
+            log_with_timestamp("INFO", &format!("Initial scan processing completed: {} files processed", processed));
+            log_docker_session_stats(&session);
+        }
     }
 
     // Setup file watcher
@@ -386,8 +421,8 @@ async fn handle_fs_event(
 async fn process_file(
     file_path: &PathBuf,
     args: &WatchArgs,
-    _db: &mut Database,
-    _downloader: &LyricsDownloader,
+    db: &mut Database,
+    downloader: &LyricsDownloader,
     scanner: &Scanner,
     session: &mut WatchSession,
 ) -> Result<()> {
@@ -417,12 +452,68 @@ async fn process_file(
                 return Ok(());
             }
 
+            // First, save the track to the database
+            let saved_track_id = match db.add_track(&track_metadata).await {
+                Ok(()) => {
+                    log_with_timestamp("INFO", &format!("SAVED {} to database", truncate_path_for_log(file_path)));
+                    1 // We saved it successfully, use placeholder ID
+                }
+                Err(e) => {
+                    log_with_timestamp("WARN", &format!("DB_ERROR {} - Failed to save to database: {}", truncate_path_for_log(file_path), e));
+                    0 // Continue with download attempt even if DB save failed
+                }
+            };
+
             // Attempt to download lyrics
             session.downloads_attempted += 1;
 
-            // TODO: Implement actual download logic
-            // For now, just log the attempt
-            log_with_timestamp("WARN", &format!("NOT_FOUND {} - Download logic placeholder", truncate_path_for_log(file_path)));
+            // Convert Track metadata to database track for download
+            let db_track = crate::core::data::database::DatabaseTrack {
+                id: saved_track_id,
+                file_path: file_path.to_string_lossy().to_string(),
+                file_name: file_path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+                title: track_metadata.title.clone(),
+                artist_name: track_metadata.artist.clone(),
+                album_name: track_metadata.album.clone(),
+                album_artist: track_metadata.album_artist.clone(),
+                duration: track_metadata.duration,
+                track_number: track_metadata.track_number.map(|n| n as i64),
+                lrc_lyrics: None,
+                txt_lyrics: None,
+            };
+
+            match downloader.download_for_track_with_fuzzy(&db_track, args.fuzzy_search).await {
+                Ok(lyrics_result) => {
+                    if lyrics_result.found {
+                        session.downloads_successful += 1;
+
+                        // Update the database with lyrics information if we have a valid ID
+                        if saved_track_id > 0 {
+                            if let Err(e) = update_track_lyrics_in_db(db, saved_track_id, &lyrics_result).await {
+                                log_with_timestamp("WARN", &format!("DB_UPDATE_ERROR {} - Failed to update lyrics in database: {}", truncate_path_for_log(file_path), e));
+                            }
+                        }
+
+                        if lyrics_result.synced_lyrics {
+                            log_with_timestamp("INFO", &format!("SUCCESS {} - Downloaded synced lyrics", truncate_path_for_log(file_path)));
+                        } else if lyrics_result.plain_lyrics {
+                            log_with_timestamp("INFO", &format!("SUCCESS {} - Downloaded plain lyrics", truncate_path_for_log(file_path)));
+                        } else if lyrics_result.instrumental {
+                            log_with_timestamp("INFO", &format!("SUCCESS {} - Track is instrumental", truncate_path_for_log(file_path)));
+                        }
+                    } else {
+                        session.downloads_failed += 1;
+                        log_with_timestamp("WARN", &format!("NOT_FOUND {} - No lyrics available", truncate_path_for_log(file_path)));
+                    }
+                }
+                Err(e) => {
+                    session.downloads_failed += 1;
+                    log_with_timestamp("ERROR", &format!("FAILED {} - Download error: {}", truncate_path_for_log(file_path), e));
+                }
+            }
         }
         Ok(None) => {
             log_with_timestamp("WARN", &format!("SKIP {} - No readable metadata", truncate_path_for_log(file_path)));
@@ -432,5 +523,17 @@ async fn process_file(
         }
     }
 
+    Ok(())
+}
+
+/// Helper function to update lyrics information in the database after download
+async fn update_track_lyrics_in_db(
+    _db: &mut Database,
+    _track_id: i64,
+    _lyrics_result: &crate::core::services::lrclib::LyricsDownloadResult,
+) -> anyhow::Result<()> {
+    // For now, we'll let the next scan pick up the lyrics files
+    // This is because the downloader saves files to disk but doesn't return the paths
+    // The database will be updated when the files are scanned again
     Ok(())
 }

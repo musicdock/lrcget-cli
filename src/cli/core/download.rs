@@ -37,6 +37,10 @@ pub struct DownloadArgs {
     /// Dry run (don't actually download)
     #[arg(long)]
     dry_run: bool,
+
+    /// Enable fuzzy search as fallback when exact match fails
+    #[arg(long)]
+    fuzzy_search: bool,
 }
 
 pub async fn execute(args: DownloadArgs, config: &crate::config::Config) -> crate::error::Result<()> {
@@ -226,7 +230,7 @@ pub async fn execute(args: DownloadArgs, config: &crate::config::Config) -> crat
                     return;
                 }
 
-                let result = match downloader.download_for_track(&track).await {
+                let result = match downloader.download_for_track_with_fuzzy(&track, args.fuzzy_search).await {
                     Ok(lyrics_info) => {
                         // Check again after download completes
                         if signal_handler.get_state() == AppState::Stopping {

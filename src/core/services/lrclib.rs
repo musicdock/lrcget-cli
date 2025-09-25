@@ -602,6 +602,10 @@ impl LyricsDownloader {
     }
 
     pub async fn download_for_track(&self, track: &DatabaseTrack) -> Result<LyricsDownloadResult> {
+        self.download_for_track_with_fuzzy(track, false).await
+    }
+
+    pub async fn download_for_track_with_fuzzy(&self, track: &DatabaseTrack, use_fuzzy: bool) -> Result<LyricsDownloadResult> {
         debug!("Downloading lyrics for: {} - {}", track.artist_name, track.title);
         
         // Try cache first if available
@@ -685,6 +689,57 @@ impl LyricsDownloader {
                 synced_lyrics: has_synced,
                 plain_lyrics: has_plain,
             })
+        } else if use_fuzzy {
+            debug!("No exact match found, trying fuzzy search for: {} - {}", track.artist_name, track.title);
+
+            // Try fuzzy search as fallback
+            let fuzzy_results = self.client.fuzzy_search(
+                &track.title,
+                &track.artist_name,
+                &track.album_name,
+                "",
+            ).await?;
+
+            if let Some(best_match) = fuzzy_results.first() {
+                debug!("Found fuzzy match for: {} - {}", track.artist_name, track.title);
+
+                // Use the same save logic as above
+                use crate::core::files::lyrics::LyricsManager;
+                let lyrics_manager = LyricsManager::new();
+
+                lyrics_manager.save_lyrics_for_track(
+                    track,
+                    best_match.plain_lyrics.as_deref(),
+                    best_match.synced_lyrics.as_deref(),
+                    best_match.instrumental,
+                ).await?;
+
+                let has_synced = best_match.synced_lyrics.is_some();
+                let has_plain = best_match.plain_lyrics.is_some();
+
+                if has_synced {
+                    debug!("Found and saved synced lyrics via fuzzy search for: {}", track.title);
+                }
+
+                if has_plain {
+                    debug!("Found and saved plain lyrics via fuzzy search for: {}", track.title);
+                }
+
+                Ok(LyricsDownloadResult {
+                    found: true,
+                    instrumental: best_match.instrumental,
+                    synced_lyrics: has_synced,
+                    plain_lyrics: has_plain,
+                })
+            } else {
+                debug!("No fuzzy match found for: {} - {}", track.artist_name, track.title);
+                Ok(LyricsDownloadResult {
+                    found: false,
+                    instrumental: false,
+                    synced_lyrics: false,
+                    plain_lyrics: false,
+                })
+            }
         } else {
             debug!("No lyrics found for: {} - {}", track.artist_name, track.title);
             Ok(LyricsDownloadResult {
