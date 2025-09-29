@@ -284,11 +284,13 @@ export LRCGET_FORCE_TERMINAL_UI=1  # Force terminal UI in all environments
 
 ## 🐳 Docker Deployment
 
-### Quick Start with Docker
+> **💡 Tip**: For comprehensive Docker configurations and Portainer stacks, see the [`docker/`](docker/) directory which includes production-ready setups with detailed documentation.
+
+### Quick Start with Pre-built Image
 
 ```bash
-# Build the image
-docker build -t lrcget-cli .
+# Use the official pre-built image from Docker Hub
+docker pull diegoninja/lrcget-cli:latest
 
 # Create persistent volume
 docker volume create lrcget_data
@@ -296,99 +298,139 @@ docker volume create lrcget_data
 # Run a command
 docker run --rm \
   -v lrcget_data:/data \
-  -v /path/to/music:/music:ro \
+  -v /path/to/music:/music \
   -e LRCGET_DATABASE_PATH=/data/lrcget.db \
-  lrcget-cli scan /music
+  -e LRCGET_REDIS_URL=redis://host.docker.internal:6379 \
+  diegoninja/lrcget-cli:latest scan /music
 ```
 
 ### Docker Compose Setup
 
-Create `docker-compose.yml`:
+Create `docker-compose.yml` or use the [improved configurations](docker/):
 
 ```yaml
 version: '3.8'
 
 services:
   lrcget:
-    build: .
+    image: diegoninja/lrcget-cli:latest  # Use pre-built image
+    container_name: lrcget-cli
+    restart: unless-stopped
     volumes:
       - lrcget_data:/data
-      - /path/to/your/music:/music:ro  # Mount your music library as read-only
+      # IMPORTANT: Write access needed to save .lrc/.txt lyrics files alongside music
+      - /path/to/your/music:/music  # Update this path
     environment:
       - LRCGET_DATABASE_PATH=/data/lrcget.db
-      - LRCGET_LRCLIB_DATABASE_PATH=/data/lrclib.db  # Optional
-      - LRCGET_REDIS_URL=redis://redis:6379  # Optional Redis cache
+      - LRCGET_REDIS_URL=redis://redis:6379
+      - LRCGET_SKIP_TRACKS_WITH_SYNCED_LYRICS=true
+      - LRCGET_TRY_EMBED_LYRICS=false
       - RUST_LOG=info
     depends_on:
-      - redis  # Optional
+      - redis
+    networks:
+      - lrcget-network
 
-  redis:  # Optional caching service
+  redis:
     image: redis:7-alpine
+    container_name: lrcget-redis
+    restart: unless-stopped
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - lrcget-network
 
 volumes:
   lrcget_data:
   redis_data:
+
+networks:
+  lrcget-network:
+    driver: bridge
 ```
 
 ### Docker Commands
 
 ```bash
 # Basic operations
-docker-compose run --rm lrcget scan /music
-docker-compose run --rm lrcget download --missing-lyrics
-docker-compose run --rm lrcget config show
+docker-compose exec lrcget lrcget scan /music
+docker-compose exec lrcget lrcget download --missing-lyrics --parallel 4
+docker-compose exec lrcget lrcget config show
 
 # Continuous monitoring
-docker-compose run --rm lrcget watch /music --initial-scan
+docker-compose exec lrcget lrcget watch /music --initial-scan
 
 # With custom settings
-docker-compose run --rm lrcget watch /music \
-  --debounce-seconds 5 \
-  --batch-size 100 \
-  --extensions mp3,flac
+docker-compose exec lrcget lrcget download --artist "Queen" --album "A Night at the Opera"
 ```
 
 ### Production Deployment
 
-For production environments, consider:
+For production environments with continuous monitoring:
 
 ```yaml
 version: '3.8'
 
 services:
   lrcget-watcher:
-    image: lrcget-cli:latest
+    image: diegoninja/lrcget-cli:latest
+    container_name: lrcget-watcher
+    restart: unless-stopped
+    command: ["watch", "/music", "--initial-scan", "--debounce-seconds", "5", "--batch-size", "25"]
     volumes:
       - lrcget_data:/data
-      - /mnt/music:/music:ro
+      - /mnt/music:/music  # Write access needed for lyrics files
     environment:
       - LRCGET_DATABASE_PATH=/data/lrcget.db
       - LRCGET_REDIS_URL=redis://redis:6379
-      - LRCGET_WATCH_DEBOUNCE_SECONDS=5
-      - LRCGET_WATCH_BATCH_SIZE=25
+      - LRCGET_SKIP_TRACKS_WITH_SYNCED_LYRICS=true
+      - LRCGET_TRY_EMBED_LYRICS=true  # Enable for media servers
       - RUST_LOG=info
-    command: watch /music --initial-scan
-    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: '1.0'
+          memory: 1G
+          cpus: '2.0'
+    networks:
+      - lrcget-network
 
   redis:
     image: redis:7-alpine
+    container_name: lrcget-redis-prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - lrcget-network
 
 volumes:
   lrcget_data:
   redis_data:
+
+networks:
+  lrcget-network:
+    driver: bridge
 ```
+
+### Portainer Deployment
+
+For easy deployment via Portainer:
+
+1. **Basic Setup**: Copy [`docker/docker-compose.yml`](docker/docker-compose.yml)
+2. **Production**: Copy [`docker/docker-compose.production.yml`](docker/docker-compose.production.yml)
+3. Deploy via Portainer → Stacks → Add stack → Web editor
+
+**Note**: Docker Compose files work perfectly in Portainer without modification.
 
 ### Environment Variables for Docker
 
