@@ -1,0 +1,208 @@
+# LRCGET CLI - Production Docker Compose Configuration
+#
+# This configuration is optimized for production deployments with:
+# - Automatic service restart
+# - Resource limits and monitoring
+# - Continuous lyrics monitoring
+# - Optimized Redis configuration
+# - Health checks and logging
+#
+# IMPORTANT: LRCGET saves .lrc and .txt lyrics files alongside your music files.
+# Your music directory needs WRITE access for lyrics file storage.
+#
+# Usage:
+#   docker-compose -f docker-compose.production.yml up -d
+
+version: '3.8'
+
+services:
+  # LRCGET CLI Watcher Service - Continuously monitors for new music files
+  lrcget-watcher:
+    image: diegoninja/lrcget-cli:latest
+    container_name: lrcget-watcher
+    restart: unless-stopped
+
+    # Command to run continuous monitoring
+    command: ["watch", "/music", "--initial-scan", "--debounce-seconds", "5", "--batch-size", "25"]
+
+    volumes:
+      # Persistent application data
+      - lrcget_data:/data
+
+      # Music library mount (UPDATE THIS PATH FOR YOUR ENVIRONMENT)
+      # IMPORTANT: Write access needed to save .lrc/.txt lyrics files alongside music
+      - /mnt/music:/music
+
+      # Optional: LRCLIB database dump
+      # - /opt/lrcget/lrclib-db-dump.sqlite3:/data/lrclib.db:ro
+
+    environment:
+      # Core configuration
+      - LRCGET_DATABASE_PATH=/data/lrcget.db
+      - LRCGET_LRCLIB_INSTANCE=https://lrclib.net
+
+      # Performance optimizations for production
+      - LRCGET_REDIS_URL=redis://redis:6379
+      - LRCGET_SKIP_TRACKS_WITH_SYNCED_LYRICS=true
+      - LRCGET_SKIP_TRACKS_WITH_PLAIN_LYRICS=false
+      - LRCGET_TRY_EMBED_LYRICS=true  # Enable for media server integration
+
+      # Watch mode optimization
+      - LRCGET_WATCH_DEBOUNCE_SECONDS=5
+      - LRCGET_WATCH_BATCH_SIZE=25
+
+      # Production logging
+      - RUST_LOG=info
+      - DOCKER=1
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+    # Health monitoring
+    healthcheck:
+      test: ["CMD", "lrcget", "config", "show"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - lrcget-network
+
+  # On-demand LRCGET CLI service for manual operations
+  lrcget-cli:
+    image: diegoninja/lrcget-cli:latest
+    container_name: lrcget-cli-manual
+    restart: "no"  # Don't auto-restart, this is for manual commands
+
+    volumes:
+      - lrcget_data:/data
+      - /mnt/music:/music  # Write access needed for lyrics files
+
+    environment:
+      - LRCGET_DATABASE_PATH=/data/lrcget.db
+      - LRCGET_LRCLIB_INSTANCE=https://lrclib.net
+      - LRCGET_REDIS_URL=redis://redis:6379
+      - LRCGET_SKIP_TRACKS_WITH_SYNCED_LYRICS=true
+      - LRCGET_SKIP_TRACKS_WITH_PLAIN_LYRICS=false
+      - LRCGET_TRY_EMBED_LYRICS=true
+      - RUST_LOG=info
+      - DOCKER=1
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    # This service is used for manual commands like:
+    # docker-compose exec lrcget-cli lrcget scan
+    # docker-compose exec lrcget-cli lrcget download --missing-lyrics --parallel 8
+    # Keep container running with a simple tail command
+    command: ["tail", "-f", "/dev/null"]
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+
+    networks:
+      - lrcget-network
+
+  # Production Redis with optimized configuration
+  redis:
+    image: redis:7-alpine
+    container_name: lrcget-redis-prod
+    restart: unless-stopped
+
+    # Production Redis configuration
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-keepalive 300
+      --timeout 0
+
+    volumes:
+      - redis_data:/data
+      # Optional: Custom Redis configuration
+      # - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+
+    # Security and performance
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+    # Redis health check
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Production logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+    networks:
+      - lrcget-network
+
+    # Optional: Expose Redis for monitoring (remove in production)
+    # ports:
+    #   - "127.0.0.1:6379:6379"
+
+volumes:
+  lrcget_data:
+    driver: local
+    # Optional: Use specific mount point for better control
+    # driver_opts:
+    #   type: 'none'
+    #   o: 'bind'
+    #   device: '/opt/lrcget/data'
+
+  redis_data:
+    driver: local
+    # Optional: Dedicated storage for Redis
+    # driver_opts:
+    #   type: 'none'
+    #   o: 'bind'
+    #   device: '/opt/lrcget/redis'
+
+networks:
+  lrcget-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

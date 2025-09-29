@@ -1,0 +1,150 @@
+# LRCGET CLI - Docker Compose Configuration
+#
+# This docker-compose.yml file provides a complete setup for running LRCGET CLI
+# with Redis caching support. It uses the pre-built image from Docker Hub.
+#
+# IMPORTANT: LRCGET saves .lrc and .txt lyrics files alongside your music files.
+# Your music directory needs WRITE access for lyrics file storage.
+#
+# Quick Start:
+#   1. Update the music volume path to point to your music library
+#   2. Run: docker-compose up -d
+#   3. Initialize: docker-compose exec lrcget lrcget init /music
+#   4. Scan library: docker-compose exec lrcget lrcget scan
+#   5. Download lyrics: docker-compose exec lrcget lrcget download --missing-lyrics --parallel 4
+#
+# For continuous monitoring:
+#   docker-compose exec lrcget lrcget watch /music --initial-scan
+
+version: '3.8'
+
+services:
+  # Main LRCGET CLI service
+  lrcget:
+    # Use the official pre-built image from Docker Hub
+    image: diegoninja/lrcget-cli:latest
+    container_name: lrcget-cli
+    restart: unless-stopped
+
+    # Volume mounts
+    volumes:
+      # Persistent data storage for database and cache
+      - lrcget_data:/data
+
+      # Mount your music library (UPDATE THIS PATH)
+      # Replace '/path/to/your/music' with the actual path to your music library
+      # IMPORTANT: Write access is needed to save .lrc/.txt lyrics files alongside music
+      - /path/to/your/music:/music  # Read-write access to save lyrics files
+
+      # Optional: Mount for LRCLIB database dump (if you have one)
+      # - /path/to/lrclib-db-dump.sqlite3:/data/lrclib.db:ro
+
+    # Environment variables for configuration
+    environment:
+      # Core LRCGET configuration
+      - LRCGET_DATABASE_PATH=/data/lrcget.db
+      - LRCGET_LRCLIB_INSTANCE=https://lrclib.net
+
+      # Optional: Enable local LRCLIB database (uncomment if you have the dump)
+      # - LRCGET_LRCLIB_DATABASE_PATH=/data/lrclib.db
+
+      # Redis cache configuration
+      - LRCGET_REDIS_URL=redis://redis:6379
+
+      # Performance settings
+      - LRCGET_SKIP_TRACKS_WITH_SYNCED_LYRICS=true
+      - LRCGET_SKIP_TRACKS_WITH_PLAIN_LYRICS=false
+      - LRCGET_TRY_EMBED_LYRICS=false
+      - LRCGET_SHOW_LINE_COUNT=true
+
+      # Watch mode settings (for continuous monitoring)
+      - LRCGET_WATCH_DEBOUNCE_SECONDS=10
+      - LRCGET_WATCH_BATCH_SIZE=50
+
+      # Logging configuration
+      - RUST_LOG=info  # Options: error, warn, info, debug, trace
+
+      # Docker environment detection
+      - DOCKER=1
+
+    # Wait for Redis to be ready
+    depends_on:
+      - redis
+
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '2.0'
+        reservations:
+          memory: 128M
+          cpus: '0.5'
+
+    # Health check to ensure service is running properly
+    healthcheck:
+      test: ["CMD", "lrcget", "config", "show"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Network configuration
+    networks:
+      - lrcget-network
+
+  # Redis cache service for improved performance
+  redis:
+    # Use official Redis Alpine image for smaller footprint
+    image: redis:7-alpine
+    container_name: lrcget-redis
+    restart: unless-stopped
+
+    # Redis configuration
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+    # Persistent storage for Redis data
+    volumes:
+      - redis_data:/data
+
+    # Resource limits for Redis
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '1.0'
+        reservations:
+          memory: 64M
+          cpus: '0.25'
+
+    # Health check for Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Network configuration
+    networks:
+      - lrcget-network
+
+    # Security: Don't expose Redis port to host (only accessible within Docker network)
+    # Uncomment the following lines if you need external Redis access for debugging
+    # ports:
+    #   - "6379:6379"
+
+# Named volumes for persistent data
+volumes:
+  # LRCGET application data (database, config, cache)
+  lrcget_data:
+    driver: local
+
+  # Redis persistence data
+  redis_data:
+    driver: local
+
+# Custom network for service communication
+networks:
+  lrcget-network:
+    driver: bridge
